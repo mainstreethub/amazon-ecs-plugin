@@ -34,16 +34,20 @@ import hudson.slaves.CloudRetentionStrategy;
 import hudson.slaves.ComputerLauncher;
 import hudson.slaves.RetentionStrategy;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
+import jenkins.model.Jenkins;
 
 /**
  * @author <a href="mailto:nicolas.deloof@gmail.com">Nicolas De Loof</a>
  */
 public class ECSSlave extends AbstractCloudSlave {
+    private static final Logger LOGGER = Logger.getLogger(ECSSlave.class.getName());
 
     @Nonnull
     private final ECSCloud cloud;
@@ -99,7 +103,11 @@ public class ECSSlave extends AbstractCloudSlave {
     @Override
     protected void _terminate(TaskListener listener) throws IOException, InterruptedException {
         if (taskArn != null) {
-            cloud.deleteTask(taskArn, clusterArn);
+            try {
+                cloud.deleteTask(taskArn, clusterArn);
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error while deleting task: " + taskArn, e);
+            }
         }
     }
 

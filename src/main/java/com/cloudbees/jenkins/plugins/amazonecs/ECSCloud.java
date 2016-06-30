@@ -29,7 +29,6 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.regions.Regions;
-import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient;
 import com.amazonaws.services.cloudwatch.model.SetAlarmStateRequest;
 import com.amazonaws.services.ecs.AmazonECSClient;
@@ -42,9 +41,6 @@ import com.amazonaws.services.ecs.model.StopTaskRequest;
 import com.amazonaws.services.ecs.model.TaskOverride;
 import com.cloudbees.jenkins.plugins.awscredentials.AWSCredentialsHelper;
 import com.cloudbees.jenkins.plugins.awscredentials.AmazonWebServicesCredentials;
-import com.cloudbees.plugins.credentials.CredentialsMatchers;
-import com.cloudbees.plugins.credentials.CredentialsProvider;
-import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import hudson.AbortException;
 import hudson.Extension;
 import hudson.ProxyConfiguration;
@@ -52,7 +48,6 @@ import hudson.model.Computer;
 import hudson.model.Descriptor;
 import hudson.model.Label;
 import hudson.model.Node;
-import hudson.security.ACL;
 import hudson.slaves.Cloud;
 import hudson.slaves.JNLPLauncher;
 import hudson.slaves.NodeProvisioner;
@@ -95,6 +90,7 @@ public class ECSCloud extends Cloud {
      * RESOURCE:MEMORY failures
      */
     private final String cloudWatchAlarmName;
+    private final int instanceCap;
 
     private String regionName;
 
@@ -110,7 +106,8 @@ public class ECSCloud extends Cloud {
                     @Nonnull String credentialsId,
                     String cluster, 
                     String regionName,
-                    String cloudWatchAlarmName) {
+                    String cloudWatchAlarmName,
+                    String instanceCapStr) {
         super(name);
         this.credentialsId = credentialsId;
         this.cluster = cluster;
@@ -121,6 +118,12 @@ public class ECSCloud extends Cloud {
             for (ECSTaskTemplate template : templates) {
                 template.setOwer(this);
             }
+        }
+
+        if (instanceCapStr.isEmpty()) {
+            this.instanceCap = Integer.MAX_VALUE;
+        } else {
+            this.instanceCap = Integer.parseInt(instanceCapStr);
         }
     }
 
@@ -165,13 +168,18 @@ public class ECSCloud extends Cloud {
 
     private ECSTaskTemplate getTemplate(Label label) {
         for (ECSTaskTemplate t : templates) {
-            if (label == null || label.matches(t.getLabelSet())) {
-                return t;
+            if (t.getMode() == Node.Mode.NORMAL) {
+                if (label == null || label.matches(t.getLabelSet())) {
+                    return t;
+                }
+            } else if (t.getMode() == Node.Mode.EXCLUSIVE) {
+                if (label != null && label.matches(t.getLabelSet())) {
+                    return t;
+                }
             }
         }
         return null;
     }
-
 
     @Override
     public Collection<NodeProvisioner.PlannedNode> provision(Label label, int excessWorkload) {
@@ -179,9 +187,18 @@ public class ECSCloud extends Cloud {
 
             List<NodeProvisioner.PlannedNode> r = new ArrayList<NodeProvisioner.PlannedNode>();
             final ECSTaskTemplate template = getTemplate(label);
+            if (template == null) {
+                return Collections.emptyList();
+            }
 
-            for (int i = 1; i <= excessWorkload; i++) {
+            int slaveCount = 0;
+            final List<Node> nodes = Jenkins.getInstance().getNodes();
+            for (Node node : nodes) {
+                slaveCount += node instanceof ECSSlave ? 1 : 0;
+            }
 
+            int instancesRemain = instanceCap - slaveCount;
+            for (int i = 1; i <= Math.min(instancesRemain, excessWorkload); i++) {
                 r.add(new NodeProvisioner.PlannedNode(template.getDisplayName(), Computer.threadPoolForRemoting
                   .submit(new ProvisioningCallback(template, label)), 1));
             }
@@ -327,8 +344,8 @@ public class ECSCloud extends Cloud {
                         triggerCloudWatchAlarm(failure.getReason());
                         if (null != slave.getComputer()) {
                             LOGGER.log(Level.WARNING, "Slave resources unavailable, deleting slave={0} arn={1}", new Object[]{slave.getNodeName(), failure.getArn()});
-                            slave.getComputer().setTemporarilyOffline(true,null);
-                            slave.getComputer().doDoDelete();
+                            slave.getComputer().setTemporarilyOffline(true, null);
+                            Jenkins.getInstance().removeNode(slave.getComputer().getNode());
                         }
                         try {
                             Thread.sleep(60000);

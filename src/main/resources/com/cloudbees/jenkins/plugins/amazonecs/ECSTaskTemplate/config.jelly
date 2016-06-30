@@ -28,6 +28,7 @@
   <f:entry title="Label" field="label">
     <f:textbox />
   </f:entry>
+  <f:slave-mode name="mode" node="${instance}" />
   <f:entry title="${%Docker Image}" field="image">
     <f:textbox default="jenkinsci/jnlp-slave" />
   </f:entry>
