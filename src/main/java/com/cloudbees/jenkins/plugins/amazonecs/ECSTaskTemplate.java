@@ -39,6 +39,7 @@ import hudson.Extension;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
 import hudson.model.Label;
+import hudson.model.Node;
 import hudson.model.labels.LabelAtom;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -68,6 +69,8 @@ public class ECSTaskTemplate extends AbstractDescribableImpl<ECSTaskTemplate> {
      */
     @CheckForNull
     private final String label;
+
+    public final Node.Mode mode;
     /**
      * Docker image
      * @see ContainerDefinition#withImage(String)
@@ -148,6 +151,7 @@ public class ECSTaskTemplate extends AbstractDescribableImpl<ECSTaskTemplate> {
 
     @DataBoundConstructor
     public ECSTaskTemplate(@Nullable String label,
+                           Node.Mode mode,
                            @Nonnull String image,
                            @Nullable String remoteFSRoot,
                            int memory,
@@ -158,6 +162,7 @@ public class ECSTaskTemplate extends AbstractDescribableImpl<ECSTaskTemplate> {
                            @Nullable List<ExtraHostEntry> extraHosts,
                            @Nullable List<MountPointEntry> mountPoints) {
         this.label = label;
+        this.mode = mode;
         this.image = image;
         this.remoteFSRoot = remoteFSRoot;
         this.memory = memory;
@@ -186,6 +191,10 @@ public class ECSTaskTemplate extends AbstractDescribableImpl<ECSTaskTemplate> {
 
     public String getLabel() {
         return label;
+    }
+
+    public Node.Mode getMode() {
+        return mode;
     }
 
     public String getImage() {
