@@ -41,6 +41,8 @@ import com.amazonaws.services.ecs.model.StopTaskRequest;
 import com.amazonaws.services.ecs.model.TaskOverride;
 import com.cloudbees.jenkins.plugins.awscredentials.AWSCredentialsHelper;
 import com.cloudbees.jenkins.plugins.awscredentials.AmazonWebServicesCredentials;
+import com.google.common.base.Objects;
+import com.google.common.base.Strings;
 import hudson.AbortException;
 import hudson.Extension;
 import hudson.ProxyConfiguration;
@@ -100,20 +102,24 @@ public class ECSCloud extends Cloud {
     @CheckForNull
     private String tunnel;
 
+    private String jenkinsUrl;
+
     @DataBoundConstructor
-    public ECSCloud(String name, 
+    public ECSCloud(String name,
                     List<ECSTaskTemplate> templates,
                     @Nonnull String credentialsId,
-                    String cluster, 
+                    String cluster,
                     String regionName,
                     String cloudWatchAlarmName,
-                    String instanceCapStr) {
+                    String instanceCapStr,
+                    String jenkinsUrl) {
         super(name);
         this.credentialsId = credentialsId;
         this.cluster = cluster;
         this.templates = templates;
         this.regionName = regionName;
         this.cloudWatchAlarmName = cloudWatchAlarmName;
+        this.jenkinsUrl = Strings.emptyToNull(jenkinsUrl);
         if (templates != null) {
             for (ECSTaskTemplate template : templates) {
                 template.setOwer(this);
@@ -160,6 +166,10 @@ public class ECSCloud extends Cloud {
             return "";
         else
             return String.valueOf(instanceCap);
+    }
+
+    public int getInstanceCap() {
+        return instanceCap;
     }
 
     @DataBoundSetter
@@ -399,7 +409,7 @@ public class ECSCloud extends Cloud {
     private Collection<String> getDockerRunCommand(ECSSlave slave) {
         Collection<String> command = new ArrayList<String>();
         command.add("-url");
-        command.add(JenkinsLocationConfiguration.get().getUrl());
+        command.add(Objects.firstNonNull(jenkinsUrl, JenkinsLocationConfiguration.get().getUrl()));
         if (StringUtils.isNotBlank(tunnel)) {
             command.add("-tunnel");
             command.add(tunnel);

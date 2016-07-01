@@ -51,6 +51,9 @@
     <f:entry title="${%Instance Cap}" field="instanceCapStr">
       <f:number clazz="positive-number" />
     </f:entry>
+    <f:entry field="jenkinsUrl" title="${%Jenkins URL}" >
+      <f:textbox />
+    </f:entry>
 
   </f:advanced>
 
