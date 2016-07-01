@@ -151,6 +151,17 @@ public class ECSCloud extends Cloud {
         return tunnel;
     }
 
+    public String getCloudWatchAlarmName() {
+        return cloudWatchAlarmName;
+    }
+
+    public String getInstanceCapStr() {
+        if (instanceCap == Integer.MAX_VALUE)
+            return "";
+        else
+            return String.valueOf(instanceCap);
+    }
+
     @DataBoundSetter
     public void setTunnel(String tunnel) {
         this.tunnel = tunnel;

@@ -49,7 +49,7 @@
       <f:textbox />
     </f:entry>
     <f:entry title="${%Instance Cap}" field="instanceCapStr">
-      <f:textbox />
+      <f:number clazz="positive-number" />
     </f:entry>
 
   </f:advanced>
