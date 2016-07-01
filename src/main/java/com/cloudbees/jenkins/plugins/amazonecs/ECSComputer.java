@@ -75,10 +75,21 @@ public class ECSComputer extends AbstractCloudComputer<ECSSlave> {
     private void terminate() {
         isAcceptingTasks = false;
 
-        try {
-            getNode().terminate();
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error while terminating ECS task: ", e);
-        }
+        threadPoolForRemoting.submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(20000);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+
+                try {
+                    getNode().terminate();
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Error while terminating ECS task: ", e);
+                }
+            }
+        });
     }
 }
