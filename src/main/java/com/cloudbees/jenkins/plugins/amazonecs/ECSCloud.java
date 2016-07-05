@@ -168,8 +168,8 @@ public class ECSCloud extends Cloud {
             return String.valueOf(instanceCap);
     }
 
-    public int getInstanceCap() {
-        return instanceCap;
+    public String getJenkinsUrl() {
+        return jenkinsUrl;
     }
 
     @DataBoundSetter
