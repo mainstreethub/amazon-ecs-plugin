@@ -51,9 +51,9 @@
   </developers>
 
   <scm>
-    <connection>scm:git:git://github.com/jenkinsci/amazon-ecs-plugin.git</connection>
-    <developerConnection>scm:git:git@github.com:jenkinsci/amazon-ecs-plugin.git</developerConnection>
-    <url>https://github.com/jenkinsci/amazon-ecs-plugin</url>
+    <connection>scm:git:git@github.com:mainstreethub/amazon-ecs-plugin.git</connection>
+    <developerConnection>scm:git:git@github.com:mainstreethub/amazon-ecs-plugin.git</developerConnection>
+    <url>https://github.com/mainstreethub/amazon-ecs-plugin</url>
     <tag>HEAD</tag>
   </scm>
 
