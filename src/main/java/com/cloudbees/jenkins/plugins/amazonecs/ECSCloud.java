@@ -50,10 +50,12 @@ import hudson.model.Computer;
 import hudson.model.Descriptor;
 import hudson.model.Label;
 import hudson.model.Node;
+import hudson.model.Slave;
 import hudson.slaves.Cloud;
 import hudson.slaves.JNLPLauncher;
 import hudson.slaves.NodeProvisioner;
 import hudson.util.ListBoxModel;
+import java.io.IOException;
 import jenkins.model.Jenkins;
 import jenkins.model.JenkinsLocationConfiguration;
 import org.apache.commons.lang.StringUtils;
@@ -348,14 +350,20 @@ public class ECSCloud extends Cloud {
             String definitionArn = template.getTaskDefinitionArn();
             slave.setTaskDefinitonArn(definitionArn);
 
-            final RunTaskResult runTaskResult = client.runTask(new RunTaskRequest()
-              .withTaskDefinition(definitionArn)
-              .withOverrides(new TaskOverride()
-                .withContainerOverrides(new ContainerOverride()
-                  .withName("jenkins-slave")
-                  .withCommand(command)))
-              .withCluster(cluster)
-            );
+            final RunTaskResult runTaskResult;
+            try {
+                runTaskResult = client.runTask(new RunTaskRequest()
+                    .withTaskDefinition(definitionArn)
+                    .withOverrides(new TaskOverride()
+                        .withContainerOverrides(new ContainerOverride()
+                            .withName("jenkins-slave")
+                            .withCommand(command)))
+                    .withCluster(cluster));
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error connecting to ECS cluster.", e);
+                removeNode(slave);
+                throw e;
+            }
 
             if (!runTaskResult.getFailures().isEmpty()) {
                 LOGGER.log(Level.WARNING, "Slave {0} - Failure to run task with definition {1} on ECS cluster {2}", new Object[]{slave.getNodeName(), definitionArn, cluster});
@@ -365,8 +373,7 @@ public class ECSCloud extends Cloud {
                         triggerCloudWatchAlarm(failure.getReason());
                         if (null != slave.getComputer()) {
                             LOGGER.log(Level.WARNING, "Slave resources unavailable, deleting slave={0} arn={1}", new Object[]{slave.getNodeName(), failure.getArn()});
-                            slave.getComputer().setTemporarilyOffline(true, null);
-                            Jenkins.getInstance().removeNode(slave.getComputer().getNode());
+                            removeNode(slave);
                         }
                         try {
                             Thread.sleep(60000);
@@ -383,26 +390,57 @@ public class ECSCloud extends Cloud {
             LOGGER.log(Level.INFO, "Slave {0} - Slave Task Started : {1}", new Object[]{slave.getNodeName(), taskArn});
             slave.setTaskArn(taskArn);
 
-            int i = 0;
-            int j = 100; // wait 100 seconds
+            int timeout = 100; // wait 100 seconds
+            boolean connected = false;
+            try {
+                connected = waitForAgentConnection(slave, taskArn, timeout);
 
-            // now wait for slave to be online
-            for (; i < j; i++) {
-                if (slave.getComputer() == null) {
-                    throw new IllegalStateException("Slave " + slave.getNodeName() + " - Node was deleted, computer is null");
+                LOGGER.log(Level.INFO, "ECS Slave " + slave.getNodeName() + " (ecs task {0}) connected", taskArn);
+                return slave;
+            } finally {
+                if (!connected) {
+                    removeNode(slave);
                 }
-                if (slave.getComputer().isOnline()) {
+            }
+        }
+
+        private boolean waitForAgentConnection(ECSSlave agent, String taskArn, int timeout)  {
+            // now wait for slave to be online
+            for (int i = 0; i < timeout; i++) {
+                if (agent.getComputer() == null) {
+                    throw new IllegalStateException("Slave " + agent.getNodeName()
+                        + " - Node was deleted, computer is null");
+                }
+                if (agent.getComputer().isOnline()) {
                     break;
                 }
-                LOGGER.log(Level.FINE, "Waiting for slave {0} (ecs task {1}) to connect ({2}/{3}).", new Object[]{slave.getNodeName(), taskArn, i, j});
-                Thread.sleep(1000);
-            }
-            if (!slave.getComputer().isOnline()) {
-                throw new IllegalStateException("ECS Slave " + slave.getNodeName() + " (ecs task " + taskArn + ") is not connected after " + j + " seconds");
+                LOGGER.log(Level.FINE, "Waiting for slave {0} (ecs task {1}) to connect ({2}/{3}).",
+                    new Object[]{agent.getNodeName(), taskArn, i, timeout});
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
 
-            LOGGER.log(Level.INFO, "ECS Slave " + slave.getNodeName() + " (ecs task {0}) connected", taskArn);
-            return slave;
+            if (!agent.getComputer().isOnline()) {
+                throw new IllegalStateException("ECS Slave " + agent.getNodeName() + " (ecs task " + taskArn + ") is not connected after " + timeout + " seconds");
+            }
+            return true;
+        }
+
+        private void removeNode(ECSSlave slave) {
+            final Slave node = slave.getComputer().getNode();
+            if (node == null) {
+                return;
+            }
+
+            try {
+                slave.getComputer().setTemporarilyOffline(true, null);
+                Jenkins.getInstance().removeNode(node);
+            } catch (IOException e) {
+                LOGGER.log(Level.WARNING, "Error while removing agent: " + slave.getNodeName());
+            }
         }
     }
 
