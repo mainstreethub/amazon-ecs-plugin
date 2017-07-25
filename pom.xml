@@ -76,13 +76,6 @@
     </snapshotRepository>
   </distributionManagement>
 
-  <scm>
-    <connection>scm:git:git@github.com:mainstreethub/amazon-ecs-plugin.git</connection>
-    <developerConnection>scm:git:git@github.com:mainstreethub/amazon-ecs-plugin.git</developerConnection>
-    <url>https://github.com/mainstreethub/amazon-ecs-plugin</url>
-    <tag>HEAD</tag>
-  </scm>
-
   <!-- This configures the reading of jars from the S3 bucket. -->
   <repositories>
     <repository>
